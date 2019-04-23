@@ -9,7 +9,7 @@ except ImportError:
     from distutils.core import setup
 
 __author__ = 'Ryan McGrath <ryan@venodesigns.net>'
-__version__ = '3.1.2'
+__version__ = '3.7.0'
 
 packages = [
     'twython',
@@ -23,7 +23,7 @@ if sys.argv[-1] == 'publish':
 setup(
     name='twython',
     version=__version__,
-    install_requires=['requests==2.1.0', 'requests_oauthlib==0.4.0'],
+    install_requires=['requests>=2.1.0', 'requests_oauthlib>=0.4.0'],
     author='Ryan McGrath',
     author_email='ryan@venodesigns.net',
     license=open('LICENSE').read(),
@@ -41,6 +41,11 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Communications :: Chat',
-        'Topic :: Internet'
+        'Topic :: Internet',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
     ]
 )

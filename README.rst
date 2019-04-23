@@ -2,14 +2,17 @@ Twython
 =======
 
 
-.. image:: https://badge.fury.io/py/twython.png
-        :target: http://badge.fury.io/py/twython
-.. image:: https://travis-ci.org/ryanmcgrath/twython.png?branch=master
-        :target: https://travis-ci.org/ryanmcgrath/twython
-.. image:: https://pypip.in/d/twython/badge.png
-        :target: https://crate.io/packages/twython/
-.. image:: https://coveralls.io/repos/ryanmcgrath/twython/badge.png?branch=master
-        :target: https://coveralls.io/r/ryanmcgrath/twython?branch=master
+.. image:: https://img.shields.io/pypi/v/twython.svg?style=flat-square
+  :target: https://pypi.python.org/pypi/twython
+
+.. image:: https://img.shields.io/pypi/dw/twython.svg?style=flat-square
+  :target: https://pypi.python.org/pypi/twython
+
+.. image:: https://img.shields.io/travis/ryanmcgrath/twython.svg?style=flat-square
+  :target: https://travis-ci.org/ryanmcgrath/twython
+
+.. image:: https://img.shields.io/coveralls/ryanmcgrath/twython/master.svg?style=flat-square
+  :target: https://coveralls.io/r/ryanmcgrath/twython?branch=master
 
 ``Twython`` is the premier Python library providing an easy (and up-to-date) way to access Twitter data. Actively maintained and featuring support for Python 2.6+ and Python 3. It's been battle tested by companies, educational institutions and individuals alike. Try it today!
 
@@ -21,7 +24,7 @@ Features
     - Twitter lists
     - Timelines
     - Direct Messages
-    - and anything found in `the docs <https://dev.twitter.com/docs/api/1.1>`_
+    - and anything found in `the docs <https://developer.twitter.com/en/docs>`_
 - Image Uploading:
     - Update user status with an image
     - Change user avatar
@@ -59,12 +62,12 @@ Or, if you want the code that is currently on GitHub
 Documentation
 -------------
 
-Documentation is available at https://twython.readthedocs.org/en/latest/
+Documentation is available at https://twython.readthedocs.io/en/latest/
 
 Starting Out
 ------------
 
-First, you'll want to head over to https://dev.twitter.com/apps and register an application!
+First, you'll want to head over to https://apps.twitter.com and register an application!
 
 After you register, grab your applications ``Consumer Key`` and ``Consumer Secret`` from the application details tab.
 
@@ -115,7 +118,7 @@ Handling the Callback
 
     If your application is a Desktop or Mobile Application *oauth_verifier* will be the PIN code
 
-After they authorize your application to access some of their account details, they'll be redirected to the callback url you specified in ``get_autentication_tokens``
+After they authorize your application to access some of their account details, they'll be redirected to the callback url you specified in ``get_authentication_tokens``
 
 You'll want to extract the ``oauth_verifier`` from the url.
 
@@ -134,12 +137,12 @@ Now that you have the ``oauth_verifier`` stored to a variable, you'll want to cr
 
     final_step = twitter.get_authorized_tokens(oauth_verifier)
 
-Once you have the final user tokens, store them in a database for later use!::
+Once you have the final user tokens, store them in a database for later use::
 
     OAUTH_TOKEN = final_step['oauth_token']
-    OAUTH_TOKEN_SECERT = final_step['oauth_token_secret']
+    OAUTH_TOKEN_SECRET = final_step['oauth_token_secret']
 
-For OAuth 2 (Application Only, read-only) authentication, see `our documentation <https://twython.readthedocs.org/en/latest/usage/starting_out.html#oauth-2-application-authentication>`_
+For OAuth 2 (Application Only, read-only) authentication, see `our documentation <https://twython.readthedocs.io/en/latest/usage/starting_out.html#oauth-2-application-authentication>`_
 
 Dynamic Function Arguments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -162,7 +165,7 @@ Create a Twython instance with your application keys and the users OAuth tokens
 Authenticated Users Home Timeline
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Documentation: https://dev.twitter.com/docs/api/1.1/get/statuses/home_timeline
+Documentation: https://developer.twitter.com/en/docs/tweets/timelines/api-reference/get-statuses-home_timeline
 
 .. code-block:: python
 
@@ -171,9 +174,9 @@ Documentation: https://dev.twitter.com/docs/api/1.1/get/statuses/home_timeline
 Updating Status
 ~~~~~~~~~~~~~~~
 
-This method makes use of dynamic arguments, `read more about them <https://twython.readthedocs.org/en/latest/usage/starting_out.html#dynamic-function-arguments>`_
+This method makes use of dynamic arguments, `read more about them <https://twython.readthedocs.io/en/latest/usage/starting_out.html#dynamic-function-arguments>`_
 
-Documentation: https://dev.twitter.com/docs/api/1/post/statuses/update
+Documentation: https://developer.twitter.com/en/docs/tweets/post-and-engage/api-reference/post-statuses-update
 
 .. code-block:: python
 
@@ -182,7 +185,7 @@ Documentation: https://dev.twitter.com/docs/api/1/post/statuses/update
 Searching
 ~~~~~~~~~
 
-    https://dev.twitter.com/docs/api/1.1/get/search/tweets says it takes "q" and "result_type" amongst other arguments
+    https://developer.twitter.com/en/docs/tweets/search/api-reference/get-search-tweets says it takes "q" and "result_type" amongst other arguments
 
 .. code-block:: python
 
@@ -192,8 +195,8 @@ Searching
 Advanced Usage
 --------------
 
-- `Advanced Twython Usage <https://twython.readthedocs.org/en/latest/usage/advanced_usage.html>`_
-- `Streaming with Twython <https://twython.readthedocs.org/en/latest/usage/streaming_api.html>`_
+- `Advanced Twython Usage <https://twython.readthedocs.io/en/latest/usage/advanced_usage.html>`_
+- `Streaming with Twython <https://twython.readthedocs.io/en/latest/usage/streaming_api.html>`_
 
 
 Notes

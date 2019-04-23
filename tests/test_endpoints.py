@@ -4,7 +4,7 @@ from .config import (
     app_key, app_secret, oauth_token, oauth_token_secret,
     protected_twitter_1, protected_twitter_2, screen_name,
     test_tweet_id, test_list_slug, test_list_owner_screen_name,
-    access_token, test_tweet_object, test_tweet_html, unittest
+    access_token, unittest
 )
 
 import time
@@ -304,6 +304,28 @@ class TwythonEndpointsTestCase(unittest.TestCase):
         """Test getting list of profile banner sizes fails because
         we have not uploaded a profile banner"""
         self.assertRaises(TwythonError, self.api.get_profile_banner_sizes)
+
+    @unittest.skip('skipping non-updated test')
+    def test_list_mutes(self):
+        """Test listing users who are muted by the authenticated user
+        succeeds"""
+        self.api.list_mutes()
+
+    @unittest.skip('skipping non-updated test')
+    def test_list_mute_ids(self):
+        """Test listing user ids who are muted by the authenticated user
+        succeeds"""
+        self.api.list_mute_ids()
+
+    @unittest.skip('skipping non-updated test')
+    def test_create_mute(self):
+        """Test muting a user succeeds"""
+        self.api.create_mute(screen_name='justinbieber')
+
+    @unittest.skip('skipping non-updated test')
+    def test_destroy_mute(self):
+        """Test muting a user succeeds"""
+        self.api.destroy_mute(screen_name='justinbieber')
 
     # Suggested Users
     @unittest.skip('skipping non-updated test')

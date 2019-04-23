@@ -1,8 +1,7 @@
+# -*- coding: utf-8 -*-
 from twython import Twython, TwythonError, TwythonAuthError, TwythonRateLimitError
 
-from .config import (
-    test_tweet_object, test_tweet_html, unittest
-)
+from .config import unittest
 
 import responses
 import requests
@@ -262,16 +261,16 @@ class TwythonAPITestCase(unittest.TestCase):
         """Test getting last specific header of the last API call works"""
         endpoint = 'statuses/home_timeline'
         url = self.get_url(endpoint)
-        self.register_response(responses.GET, url, adding_headers={'x-rate-limit-remaining': 37})
+        self.register_response(responses.GET, url, adding_headers={'x-rate-limit-remaining': '37'})
 
         self.api.get(endpoint)
 
         value = self.api.get_lastfunction_header('x-rate-limit-remaining')
-        self.assertEqual(37, value)
+        self.assertEqual('37', value)
         value2 = self.api.get_lastfunction_header('does-not-exist')
         self.assertIsNone(value2)
-        value3 = self.api.get_lastfunction_header('not-there-either', 96)
-        self.assertEqual(96, value3)
+        value3 = self.api.get_lastfunction_header('not-there-either', '96')
+        self.assertEqual('96', value3)
 
     def test_get_lastfunction_header_should_raise_error_when_no_previous_call(self):
         """Test attempting to get a header when no API call was made raises a TwythonError"""
@@ -286,7 +285,7 @@ class TwythonAPITestCase(unittest.TestCase):
 
         self.api.get(endpoint)
 
-        self.assertEqual(b'gzip, deflate, compress', responses.calls[0].request.headers['Accept-Encoding'])
+        self.assertEqual(b'gzip, deflate', responses.calls[0].request.headers['Accept-Encoding'])
 
     # Static methods
     def test_construct_api_url(self):
@@ -299,21 +298,15 @@ class TwythonAPITestCase(unittest.TestCase):
         """Test encoding UTF-8 works"""
         self.api.encode('Twython is awesome!')
 
-    def test_html_for_tweet(self):
-        """Test HTML for Tweet returns what we want"""
-        tweet_text = self.api.html_for_tweet(test_tweet_object)
-        self.assertEqual(test_tweet_html, tweet_text)
+    def test_cursor_requires_twython_function(self):
+        """Test that cursor() raises when called without a Twython function"""
+        def init_and_iterate_cursor(*args, **kwargs):
+            cursor = self.api.cursor(*args, **kwargs)
+            return next(cursor)
 
-    def test_html_for_tweet_expanded_url(self):
-        """Test using expanded url in HTML for Tweet displays full urls"""
-        tweet_text = self.api.html_for_tweet(test_tweet_object,
-                                             use_expanded_url=True)
-        # Make sure full url is in HTML
-        self.assertTrue('http://google.com' in tweet_text)
+        non_function = object()
+        non_twython_function = lambda x: x
 
-    def test_html_for_tweet_short_url(self):
-        """Test using expanded url in HTML for Tweet displays full urls"""
-        tweet_text = self.api.html_for_tweet(test_tweet_object, False)
-        # Make sure HTML doesn't contain the display OR expanded url
-        self.assertTrue('http://google.com' not in tweet_text)
-        self.assertTrue('google.com' not in tweet_text)
+        self.assertRaises(TypeError, init_and_iterate_cursor, non_function)
+        self.assertRaises(TwythonError, init_and_iterate_cursor, non_twython_function)
+

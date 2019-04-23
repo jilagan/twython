@@ -9,6 +9,9 @@ Twitter Authentication, and miscellaneous methods that are useful when
 dealing with the Twitter API
 """
 
+import warnings
+import re
+
 import requests
 from requests.auth import HTTPBasicAuth
 from requests_oauthlib import OAuth1, OAuth2
@@ -16,11 +19,10 @@ from requests_oauthlib import OAuth1, OAuth2
 from . import __version__
 from .advisory import TwythonDeprecationWarning
 from .compat import json, urlencode, parse_qsl, quote_plus, str, is_py2
+from .compat import urlsplit
 from .endpoints import EndpointsMixin
 from .exceptions import TwythonError, TwythonAuthError, TwythonRateLimitError
 from .helpers import _transparent_params
-
-import warnings
 
 warnings.simplefilter('always', TwythonDeprecationWarning)  # For Python 2.7 >
 
@@ -102,15 +104,10 @@ class Twython(EndpointsMixin, object):
         auth = None
         if oauth_version == 1:
             # User Authentication is through OAuth 1
-            if self.app_key is not None and self.app_secret is not None and \
-               self.oauth_token is None and self.oauth_token_secret is None:
-                auth = OAuth1(self.app_key, self.app_secret)
-
-            if self.app_key is not None and self.app_secret is not None and \
-               self.oauth_token is not None and self.oauth_token_secret is \
-               not None:
+            if self.app_key is not None and self.app_secret is not None:
                 auth = OAuth1(self.app_key, self.app_secret,
-                              self.oauth_token, self.oauth_token_secret)
+                                self.oauth_token, self.oauth_token_secret)
+
         elif oauth_version == 2 and self.access_token:
             # Application Authentication is through OAuth 2
             token = {'token_type': token_type,
@@ -138,13 +135,17 @@ class Twython(EndpointsMixin, object):
     def __repr__(self):
         return '<Twython: %s>' % (self.app_key)
 
-    def _request(self, url, method='GET', params=None, api_call=None):
+    def _request(self, url, method='GET', params=None, api_call=None, json_encoded=False):
         """Internal request method"""
         method = method.lower()
         params = params or {}
 
         func = getattr(self.client, method)
-        params, files = _transparent_params(params)
+        if isinstance(params, dict) and json_encoded is False:
+            params, files = _transparent_params(params)
+        else:
+            params = params
+            files = list()
 
         requests_args = {}
         for k, v in self.client_args.items():
@@ -152,11 +153,16 @@ class Twython(EndpointsMixin, object):
             if k in ('timeout', 'allow_redirects', 'stream', 'verify'):
                 requests_args[k] = v
 
-        if method == 'get':
+        if method == 'get' or method == 'delete':
             requests_args['params'] = params
         else:
+            # Check for json_encoded so we will sent params as "data" or "json"
+            if json_encoded:
+                data_key = 'json'
+            else:
+                data_key = 'data'
             requests_args.update({
-                'data': params,
+                data_key: params,
                 'files': files,
             })
         try:
@@ -192,16 +198,20 @@ class Twython(EndpointsMixin, object):
                 # app keys/user tokens
                 ExceptionType = TwythonAuthError
 
-            raise ExceptionType(error_message,
-                                error_code=response.status_code,
-                                retry_after=response.headers.get('retry-\
-                                after'))
-
+            raise ExceptionType(
+                error_message,
+                error_code=response.status_code,
+                retry_after=response.headers.get('X-Rate-Limit-Reset'))
+        content = ''
         try:
-            content = response.json()
+            if response.status_code == 204:
+                content = response.content
+            else:
+                content = response.json()
         except ValueError:
-            raise TwythonError('Response was not valid JSON. \
-                               Unable to decode.')
+            if response.content != '':
+                raise TwythonError('Response was not valid JSON. \
+                                   Unable to decode.')
 
         return content
 
@@ -214,6 +224,8 @@ class Twython(EndpointsMixin, object):
             # {"errors":[{"code":34,"message":"Sorry,
             # that page does not exist"}]}
             error_message = content['errors'][0]['message']
+        except TypeError:
+            error_message = content['errors']
         except ValueError:
             # bad json data from Twitter for an error
             pass
@@ -223,14 +235,14 @@ class Twython(EndpointsMixin, object):
 
         return error_message
 
-    def request(self, endpoint, method='GET', params=None, version='1.1'):
+    def request(self, endpoint, method='GET', params=None, version='1.1', json_encoded=False):
         """Return dict of response received from Twitter's API
 
         :param endpoint: (required) Full url or Twitter API endpoint
                          (e.g. search/tweets)
         :type endpoint: string
         :param method: (optional) Method of accessing data, either
-                       GET or POST. (default GET)
+                       GET, POST or DELETE. (default GET)
         :type method: string
         :param params: (optional) Dict of parameters (if any) accepted
                        the by Twitter API endpoint you are trying to
@@ -239,19 +251,25 @@ class Twython(EndpointsMixin, object):
         :param version: (optional) Twitter API version to access
                         (default 1.1)
         :type version: string
+        :param json_encoded: (optional) Flag to indicate if this method should send data encoded as json
+                        (default False)
+        :type json_encoded: bool
 
         :rtype: dict
         """
 
+        if endpoint.startswith('http://'):
+            raise TwythonError('api.twitter.com is restricted to SSL/TLS traffic.')
+
         # In case they want to pass a full Twitter URL
         # i.e. https://api.twitter.com/1.1/search/tweets.json
-        if endpoint.startswith('http://') or endpoint.startswith('https://'):
+        if endpoint.startswith('https://'):
             url = endpoint
         else:
             url = '%s/%s.json' % (self.api_url % version, endpoint)
 
         content = self._request(url, method=method, params=params,
-                                api_call=url)
+                                api_call=url, json_encoded=json_encoded)
 
         return content
 
@@ -259,9 +277,13 @@ class Twython(EndpointsMixin, object):
         """Shortcut for GET requests via :class:`request`"""
         return self.request(endpoint, params=params, version=version)
 
-    def post(self, endpoint, params=None, version='1.1'):
+    def post(self, endpoint, params=None, version='1.1', json_encoded=False):
         """Shortcut for POST requests via :class:`request`"""
-        return self.request(endpoint, 'POST', params=params, version=version)
+        return self.request(endpoint, 'POST', params=params, version=version, json_encoded=json_encoded)
+
+    def delete(self, endpoint, params=None, version='1.1', json_encoded=False):
+        """Shortcut for delete requests via :class:`request`"""
+        return self.request(endpoint, 'DELETE', params=params, version=version, json_encoded=json_encoded)
 
     def get_lastfunction_header(self, header, default_return_value=None):
         """Returns a specific header from the last API call
@@ -466,6 +488,11 @@ class Twython(EndpointsMixin, object):
           >>>   print result
 
         """
+        if not callable(function):
+            raise TypeError('.cursor() takes a Twython function as its first \
+                            argument. Did you provide the result of a \
+                            function call?')
+
         if not hasattr(function, 'iter_mode'):
             raise TwythonError('Unable to create generator for Twython \
                                method "%s"' % function.__name__)
@@ -493,20 +520,27 @@ class Twython(EndpointsMixin, object):
 
             try:
                 if function.iter_mode == 'id':
-                    if 'max_id' not in params:
-                        # Add 1 to the id because since_id and
-                        # max_id are inclusive
-                        if hasattr(function, 'iter_metadata'):
-                            since_id = content[function.iter_metadata]\
-                                .get('since_id_str')
+                    # Set max_id in params to one less than lowest tweet id
+                    if hasattr(function, 'iter_metadata'):
+                        # Get supplied next max_id
+                        metadata = content.get(function.iter_metadata)
+                        if 'next_results' in metadata:
+                            next_results = urlsplit(metadata['next_results'])
+                            params = dict(parse_qsl(next_results.query))
                         else:
-                            since_id = content[0]['id_str']
-                        params['since_id'] = (int(since_id) - 1)
+                            # No more results
+                            raise StopIteration
+                    else:
+                        # Twitter gives tweets in reverse chronological order:
+                        params['max_id'] = str(int(content[-1]['id_str']) - 1)
                 elif function.iter_mode == 'cursor':
                     params['cursor'] = content['next_cursor_str']
             except (TypeError, ValueError):  # pragma: no cover
                 raise TwythonError('Unable to generate next page of search \
                                    results, `page` is not a number.')
+            except (KeyError, AttributeError):  #pragma no cover
+                raise TwythonError('Unable to generate next page of search \
+                                   results, content has unexpected structure.')
 
     @staticmethod
     def unicode2utf8(text):
@@ -524,8 +558,8 @@ class Twython(EndpointsMixin, object):
         return str(text)
 
     @staticmethod
-    def html_for_tweet(tweet, use_display_url=True, use_expanded_url=False):
-        """Return HTML for a tweet (urls, mentions, hashtags replaced with links)
+    def html_for_tweet(tweet, use_display_url=True, use_expanded_url=False, expand_quoted_status=False):
+        """Return HTML for a tweet (urls, mentions, hashtags, symbols replaced with links)
 
         :param tweet: Tweet object from received from Twitter API
         :param use_display_url: Use display URL to represent link
@@ -541,38 +575,134 @@ class Twython(EndpointsMixin, object):
         if 'retweeted_status' in tweet:
             tweet = tweet['retweeted_status']
 
+        if 'extended_tweet' in tweet:
+            tweet = tweet['extended_tweet']
+
+        orig_tweet_text = tweet.get('full_text') or tweet['text']
+
+        display_text_range = tweet.get('display_text_range') or [0, len(orig_tweet_text)]
+        display_text_start, display_text_end = display_text_range[0], display_text_range[1]
+        display_text = orig_tweet_text[display_text_start:display_text_end]
+        prefix_text = orig_tweet_text[0:display_text_start]
+        suffix_text = orig_tweet_text[display_text_end:len(orig_tweet_text)]
+
         if 'entities' in tweet:
-            text = tweet['text']
-            entities = tweet['entities']
+            # We'll put all the bits of replacement HTML and their starts/ends
+            # in this list:
+            entities = []
 
             # Mentions
-            for entity in entities['user_mentions']:
-                start, end = entity['indices'][0], entity['indices'][1]
+            if 'user_mentions' in tweet['entities']:
+                for entity in tweet['entities']['user_mentions']:
+                    temp = {}
+                    temp['start'] = entity['indices'][0]
+                    temp['end'] = entity['indices'][1]
 
-                mention_html = '<a href="https://twitter.com/%(screen_name)s" class="twython-mention">@%(screen_name)s</a>'
-                text = text.replace(tweet['text'][start:end],
-                        mention_html % {'screen_name': entity['screen_name']})
+                    mention_html = '<a href="https://twitter.com/%(screen_name)s" class="twython-mention">@%(screen_name)s</a>' % {'screen_name': entity['screen_name']}
+
+                    if display_text_start <= temp['start'] <= display_text_end:
+                        temp['replacement'] = mention_html
+                        temp['start'] -= display_text_start
+                        temp['end'] -= display_text_start
+                        entities.append(temp)
+                    else:
+                        # Make the '@username' at the start, before
+                        # display_text, into a link:
+                        sub_expr = r'(?<!>)' + orig_tweet_text[temp['start']:temp['end']] + '(?!</a>)'
+                        prefix_text = re.sub(sub_expr, mention_html, prefix_text)
 
             # Hashtags
-            for entity in entities['hashtags']:
-                start, end = entity['indices'][0], entity['indices'][1]
+            if 'hashtags' in tweet['entities']:
+                for entity in tweet['entities']['hashtags']:
+                    temp = {}
+                    temp['start'] = entity['indices'][0] - display_text_start
+                    temp['end'] = entity['indices'][1] - display_text_start
 
-                hashtag_html = '<a href="https://twitter.com/search?q=%%23%(hashtag)s" class="twython-hashtag">#%(hashtag)s</a>'
-                text = text.replace(tweet['text'][start:end], hashtag_html % {'hashtag': entity['text']})
+                    url_html = '<a href="https://twitter.com/search?q=%%23%(hashtag)s" class="twython-hashtag">#%(hashtag)s</a>' % {'hashtag': entity['text']}
 
-            # Urls
-            for entity in entities['urls']:
-                start, end = entity['indices'][0], entity['indices'][1]
-                if use_display_url and entity.get('display_url') \
-                   and not use_expanded_url:
+                    temp['replacement'] = url_html
+                    entities.append(temp)
+
+            # Symbols
+            if 'symbols' in tweet['entities']:
+                for entity in tweet['entities']['symbols']:
+                    temp = {}
+                    temp['start'] = entity['indices'][0] - display_text_start
+                    temp['end'] = entity['indices'][1] - display_text_start
+
+                    url_html = '<a href="https://twitter.com/search?q=%%24%(symbol)s" class="twython-symbol">$%(symbol)s</a>' % {'symbol': entity['text']}
+
+                    temp['replacement'] = url_html
+                    entities.append(temp)
+
+            # URLs
+            if 'urls' in tweet['entities']:
+                for entity in tweet['entities']['urls']:
+                    temp = {}
+                    temp['start'] = entity['indices'][0] - display_text_start
+                    temp['end'] = entity['indices'][1] - display_text_start
+
+                    if use_display_url and entity.get('display_url') and not use_expanded_url:
+                        shown_url = entity['display_url']
+                    elif use_expanded_url and entity.get('expanded_url'):
+                        shown_url = entity['expanded_url']
+                    else:
+                        shown_url = entity['url']
+
+                    url_html = '<a href="%s" class="twython-url">%s</a>' % (entity['url'], shown_url)
+
+                    if display_text_start <= temp['start'] <= display_text_end:
+                        temp['replacement'] = url_html
+                        entities.append(temp)
+                    else:
+                        suffix_text = suffix_text.replace(orig_tweet_text[temp['start']:temp['end']], url_html)
+
+            if 'media' in tweet['entities'] and len(tweet['entities']['media']) > 0:
+                # We just link to the overall URL for the tweet's media,
+                # rather than to each individual item.
+                # So, we get the URL from the first media item:
+                entity = tweet['entities']['media'][0]
+
+                temp = {}
+                temp['start'] = entity['indices'][0]
+                temp['end'] = entity['indices'][1]
+
+                if use_display_url and entity.get('display_url') and not use_expanded_url:
                     shown_url = entity['display_url']
                 elif use_expanded_url and entity.get('expanded_url'):
                     shown_url = entity['expanded_url']
                 else:
                     shown_url = entity['url']
 
-                url_html = '<a href="%s" class="twython-url">%s</a>'
-                text = text.replace(tweet['text'][start:end],
-                                    url_html % (entity['url'], shown_url))
+                url_html = '<a href="%s" class="twython-media">%s</a>' % (entity['url'], shown_url)
 
-        return text
+                if display_text_start <= temp['start'] <= display_text_end:
+                    temp['replacement'] = url_html
+                    entities.append(temp)
+                else:
+                    suffix_text = suffix_text.replace(orig_tweet_text[temp['start']:temp['end']], url_html)
+
+            # Now do all the replacements, starting from the end, so that the
+            # start/end indices still work:
+            for entity in sorted(entities, key=lambda e: e['start'], reverse=True):
+                display_text = display_text[0:entity['start']] + entity['replacement'] + display_text[entity['end']:]
+
+        quote_text = ''
+        if expand_quoted_status and tweet.get('is_quote_status') and tweet.get('quoted_status'):
+            quoted_status = tweet['quoted_status']
+            quote_text += '<blockquote class="twython-quote">%(quote)s<cite><a href="%(quote_tweet_link)s">' \
+                    '<span class="twython-quote-user-name">%(quote_user_name)s</span>' \
+                    '<span class="twython-quote-user-screenname">@%(quote_user_screen_name)s</span></a>' \
+                    '</cite></blockquote>' % \
+                    {'quote': Twython.html_for_tweet(quoted_status, use_display_url, use_expanded_url, False),
+                     'quote_tweet_link': 'https://twitter.com/%s/status/%s' %
+                                         (quoted_status['user']['screen_name'], quoted_status['id_str']),
+                     'quote_user_name': quoted_status['user']['name'],
+                     'quote_user_screen_name': quoted_status['user']['screen_name']}
+
+        return '%(prefix)s%(display)s%(suffix)s%(quote)s' % {
+            'prefix': '<span class="twython-tweet-prefix">%s</span>' % prefix_text if prefix_text else '',
+            'display': display_text,
+            'suffix': '<span class="twython-tweet-suffix">%s</span>' % suffix_text if suffix_text else '',
+            'quote': quote_text
+        }
